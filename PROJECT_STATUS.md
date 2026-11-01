@@ -12,7 +12,7 @@ Legend: ✅ done & tested · 🟡 in progress · ⬜ not started · ⚠️ block
 | M1 | Infrastructure: MinIO, SFTPGo, NiFi, RabbitMQ, Postgres, Keycloak (Compose) | ✅ core · 🟡 Keycloak boot test deferred to M9 | `tests/integration/test_infra.py` 7 passed; `make up-core` 65 s |
 | M2 | Core library: config, storage client, inference client, logging; inference contract + gateway + fake backend | ✅ | `tests/unit/test_core.py` 14 passed |
 | M3 | Ingestion: SFTPGo → NiFi → MinIO, checksum, manifest, dedupe, enqueue | ⬜ | |
-| M4 | Pixeltable schema + registration | ⬜ | |
+| M4 | Pixeltable schema, repository, stage graph | ✅ | `test_stages.py` 8 passed; `test_repository.py` 3 passed (integration) |
 | M5 | Inference service (Kaggle) + tunnel + `make set-llm-url` | ⬜ | |
 | M6 | Processing worker: audio, ASR, scenes, frames, captions, OCR, embeddings, retries, DLQ | ⬜ | |
 | M7 | Search + RAG (hybrid, rerank, grounded answers) | ⬜ | |
@@ -28,6 +28,7 @@ Legend: ✅ done & tested · 🟡 in progress · ⬜ not started · ⚠️ block
 |---|---|---|
 | 2026-11-01 | `pytest -m integration tests/integration/test_infra.py` | 7 passed |
 | 2026-11-01 | `pytest` (unit) | 14 passed; ruff clean |
+| 2026-11-01 | unit 22 passed; integration 10 passed | after M4 |
 | 2026-11-01 | Pixeltable spike: external Postgres, `s3://` MinIO read, UDF embedding index | all 3 confirmed |
 
 ## Architectural decisions
