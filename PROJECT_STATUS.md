@@ -1,0 +1,45 @@
+# Project Status
+
+Last updated: 2026-11-01
+
+Legend: ✅ done & tested · 🟡 in progress · ⬜ not started · ⚠️ blocked/limitation
+
+## Milestones
+
+| # | Milestone | Status | Evidence |
+|---|---|---|---|
+| M0 | Repo inspection, reference comparison, plan | ✅ | `docs/architecture/reference-comparison.md`, `docs/architecture/implementation-plan.md` |
+| M1 | Infrastructure: MinIO, SFTPGo, NiFi, RabbitMQ, Postgres, Keycloak (Compose) | ✅ core · 🟡 Keycloak boot test deferred to M9 | `tests/integration/test_infra.py` 7 passed; `make up-core` 65 s |
+| M2 | Core library: config, storage client, inference client, logging | ⬜ | |
+| M3 | Ingestion: SFTPGo → NiFi → MinIO, checksum, manifest, dedupe, enqueue | ⬜ | |
+| M4 | Pixeltable schema + registration | ⬜ | |
+| M5 | Inference service (Kaggle) + tunnel + `make set-llm-url` | ⬜ | |
+| M6 | Processing worker: audio, ASR, scenes, frames, captions, OCR, embeddings, retries, DLQ | ⬜ | |
+| M7 | Search + RAG (hybrid, rerank, grounded answers) | ⬜ | |
+| M8 | MCP server + agent orchestration | ⬜ | |
+| M9 | FastAPI app, auth, audit, clips, playback | ⬜ | |
+| M10 | Frontend | ⬜ | |
+| M11 | Observability (Prometheus/Grafana) | ⬜ | |
+| M12 | E2E acceptance test, runbook, tutorials, security review | ⬜ | |
+
+## Test results
+
+| Date | Suite | Result |
+|---|---|---|
+| 2026-11-01 | `pytest -m integration tests/integration/test_infra.py` | 7 passed |
+| 2026-11-01 | Pixeltable spike: external Postgres, `s3://` MinIO read, UDF embedding index | all 3 confirmed |
+
+## Architectural decisions
+
+See `docs/architecture/architecture-decisions.md`.
+
+## Known issues / risks
+
+| Risk | Impact | Mitigation |
+|---|---|---|
+| Pixeltable has no first-class MinIO *write* target | Cannot use `destination=` | Worker writes derived media to MinIO; Pixeltable holds `s3://` references (read path **tested** via `AWS_ENDPOINT_URL_S3`). |
+| Official MinIO images unavailable; using `pgsty/minio` (owner decision 2026-11-01) | Third-party supply chain; AGPLv3 | Pin by release tag; record digest; legal review of AGPL before production. |
+| Codespace: 2 vCPU / 7 GB RAM | NiFi + Keycloak + Pixeltable concurrently may be tight | Memory limits per container; profiles to start subsets. |
+| No system ffmpeg, no sudo in Codespace | Media processing | Worker runs in a container with ffmpeg; host dev uses `imageio-ffmpeg` static binary. |
+| Kaggle sessions are ephemeral (≤12 h, tunnel URL changes) | Inference unavailable intermittently | Durable queue, stage-level retries with backoff, `make set-llm-url`. |
+| Model licences not yet verified | Cannot download weights | M5 licence review before any download. |
