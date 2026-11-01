@@ -87,6 +87,9 @@ def test_postgres_databases_and_pgvector(env):
     dsn = f"postgresql://pixeltable:{env['PIXELTABLE_DB_PASSWORD']}@127.0.0.1:5432/pixeltable"
     with psycopg.connect(dsn) as conn:
         assert conn.execute("SELECT extname FROM pg_extension WHERE extname='vector'").fetchone()
-    for db, user, pw in (("keycloak", "keycloak", "KEYCLOAK_DB_PASSWORD"), ("newsintel", "newsintel", "APP_DB_PASSWORD")):
+    for db, user, pw in (
+        ("keycloak", "keycloak", "KEYCLOAK_DB_PASSWORD"),
+        ("newsintel", "newsintel", "APP_DB_PASSWORD"),
+    ):
         with psycopg.connect(f"postgresql://{user}:{env[pw]}@127.0.0.1:5432/{db}") as conn:
             assert conn.execute("SELECT 1").fetchone() == (1,)

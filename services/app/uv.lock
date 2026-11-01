@@ -1005,6 +1005,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "fastmcp" },
     { name = "httpx" },
+    { name = "newsintel-inference" },
     { name = "openai" },
     { name = "opencv-python-headless" },
     { name = "pika" },
@@ -1036,6 +1037,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
     { name = "fastmcp", specifier = ">=2.12" },
     { name = "httpx", specifier = ">=0.28" },
+    { name = "newsintel-inference", editable = "../inference" },
     { name = "openai", specifier = ">=1.90" },
     { name = "opencv-python-headless", specifier = ">=4.11" },
     { name = "pika", specifier = ">=1.3.2" },
@@ -1060,6 +1062,32 @@ dev = [
     { name = "respx", specifier = ">=0.22" },
     { name = "ruff", specifier = ">=0.12" },
 ]
+
+[[package]]
+name = "newsintel-inference"
+version = "0.1.0"
+source = { editable = "../inference" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "numpy" },
+    { name = "pillow" },
+    { name = "pydantic" },
+    { name = "python-multipart" },
+    { name = "uvicorn" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.115" },
+    { name = "httpx", specifier = ">=0.28" },
+    { name = "numpy", specifier = ">=1.26" },
+    { name = "pillow", specifier = ">=10.0" },
+    { name = "pydantic", specifier = ">=2.11,<3" },
+    { name = "python-multipart", specifier = ">=0.0.20" },
+    { name = "uvicorn", specifier = ">=0.34" },
+]
+provides-extras = ["gpu"]
 
 [[package]]
 name = "numpy"
