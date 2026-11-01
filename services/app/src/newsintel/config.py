@@ -68,6 +68,8 @@ class Settings(BaseSettings):
     oidc_audience: str = "newsintel-api"
     ingest_service_token: SecretStr
     auth_disabled: bool = False  # tests only; refused when app_env=production
+    media_token_secret: SecretStr = Field(default=SecretStr(""), description="HMAC key for media URLs (>=32 chars)")
+    max_clip_s: float = Field(default=300.0, gt=0)
     # Access-control units. An upload at uploads/<user>/<collection>/<file> goes to <collection> if it is
     # listed here; otherwise to default_collection. Users get collections through Keycloak groups.
     collections: list[str] = ["collection-general", "collection-restricted"]

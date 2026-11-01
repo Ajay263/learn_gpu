@@ -180,12 +180,106 @@ for s in r.segments(vid): print(s['start_s'], s['end_s'], s['language'], s['text
 Nothing needs to be done by hand. Inference stages move to `retrying` (`last_error` contains
 `InferenceUnavailable`), non-inference stages finish, and jobs wait in `stage.retry.30s → 5m → 30m`.
 When the endpoint is back (`make set-llm-url` after a new Kaggle session), the next retry succeeds.
-After 8 attempts (~2 h) a stage becomes `failed` and a copy goes to `stage.dead`; use the retry API
-(section "Troubleshoot failed jobs") to resume.
+After 8 attempts (~2 h) a stage becomes `failed` and a copy goes to `stage.dead`; see section 17 to resume.
 
 Proven by `tests/integration/test_pipeline_e2e.py::test_inference_outage_is_retried_and_recovers_without_intervention`.
 
+## 13. Create development users and get a token [TESTED 2026-11-01]
+
+DEVELOPMENT ONLY. Needs Keycloak running (`make up-all`, or the `auth` profile).
+```bash
+make dev-users      # analyst1 (analyst, collection-general), viewer2 (viewer, collection-restricted), admin1 (admin, both)
+set -a; . ./.env; set +a
+token() { curl -s -d grant_type=password -d client_id=newsintel-cli -d username=$1 -d "password=$DEV_USER_PASSWORD" \
+  http://localhost:8081/realms/newsintel/protocol/openid-connect/token | jq -r .access_token; }
+TOKEN=$(token analyst1)
+curl -s -H "Authorization: Bearer $TOKEN" localhost:8000/api/v1/me; echo
+```
+Expected: `{"username":"analyst1","roles":["analyst"],"collections":["collection-general"]}`.
+Tokens last 15 min; re-run `TOKEN=$(token analyst1)` when you get `401 invalid token: ExpiredSignatureError`.
+
+## 14. Search and ask questions [TESTED 2026-11-01 with fake inference]
+
+```bash
+curl -s -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"query":"payment issue","top_k":3}' localhost:8000/api/v1/search \
+  | jq -c '.results[] | {video_id, start_s, source, relevance, excerpt: .excerpt[:60]}'
+
+curl -s -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"question":"Who announced a government policy on digital payments?"}' localhost:8000/api/v1/ask \
+  | jq '{answer, sufficient_evidence, citations, quality}'
+```
+Expected: search results with `start_s` = the timestamp of the matching segment (10.0 for the test fixture);
+`ask` returns `sufficient_evidence: true` and citations like `["E2"]` that refer to the returned `evidence`.
+A question the videos cannot answer returns `"The information could not be verified from the indexed videos."`
+and `sufficient_evidence: false` — this is correct behaviour, not an error.
+
+| Symptom | Cause / fix |
+|---|---|
+| `503 search temporarily unavailable` | Inference gateway down → `make set-llm-url` / check Kaggle (section 12) |
+| Empty `results` | Video not in your collections, or not yet `indexed` (`/api/v1/jobs`) |
+| Everything "could not be verified" with real models | Reranker threshold needs tuning (`docs/ai/embeddings-and-search.md`) |
+
+## 15. Open a video at a timestamp [TESTED 2026-11-01]
+
+```bash
+VID=$(curl -s -H "Authorization: Bearer $TOKEN" localhost:8000/api/v1/videos | jq -r '[.[]|select(.status=="indexed")][0].video_id')
+URL=$(curl -s -X POST -H "Authorization: Bearer $TOKEN" "localhost:8000/api/v1/videos/$VID/playback?t=10" | jq -r .url)
+curl -s -o /dev/null -w "%{http_code} %{size_download}B\n" -H "Range: bytes=0-1023" "localhost:8000${URL%%#*}"
+```
+Expected: `206 1024B`. In a browser, `http://localhost:8000$URL` starts playing at 10 s (`#t=10.0`).
+The link expires after `PRESIGN_TTL_S` (default 15 min) → `403 media link invalid: expired`; request a new one.
+
+## 16. Generate a clip [TESTED 2026-11-01]
+
+Requires role analyst.
+```bash
+curl -s -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d "{\"video_id\":\"$VID\",\"start_s\":12,\"end_s\":18}" localhost:8000/api/v1/clips | tee clip.json | jq -c '{cached, start_s, end_s}'
+curl -s -o clip.mp4 "localhost:8000$(jq -r .url clip.json)"
+```
+Expected: `{"cached":false,"start_s":12.0,"end_s":18.0}` the first time, `cached: true` afterwards; `clip.mp4`
+is a 6 s H.264/AAC MP4. Clips are stored in the `evidence` bucket under `clips/<video_id>/`.
+`422` = invalid bounds (end ≤ start, start past the end of the video, or longer than `MAX_CLIP_S`).
+
+## 17. Troubleshoot and retry failed processing [TESTED 2026-11-01]
+
+**Find problems** (analyst):
+```bash
+curl -s -H "Authorization: Bearer $TOKEN" localhost:8000/api/v1/jobs \
+  | jq -c '.[] | select(.status!="indexed") | {video_id, status, errors}'
+```
+`partial` = searchable but some stage failed (e.g. OCR); `failed` = nothing searchable. `errors` holds the
+last error per failed/retrying stage. Worker logs: `make logs S=worker | grep <video_id>`.
+
+**Retry** after fixing the cause (e.g. inference back up). Only failed/skipped stages run again;
+finished stages are kept, and ASR resumes from its last saved chunk.
+```bash
+curl -s -X POST -H "Authorization: Bearer $TOKEN" localhost:8000/api/v1/videos/$VID/retry
+# or, as an operator on the host (no token needed, recorded in the audit log):
+docker exec newsintel-api-1 newsintel-admin status $VID
+docker exec newsintel-api-1 newsintel-admin retry $VID --operator <your-name> [--stage ocr]
+```
+Expected: `{"video_id": "...", "reset_stages": ["ocr"]}` and the video returns to `indexed` once the worker
+finishes. `reset_stages: []` means nothing was failed.
+Proven by `tests/integration/test_api.py::test_failed_stage_is_visible_and_retried_via_api`.
+
+**Stuck in `queued`/`retrying` for a long time** (a lost queue message, e.g. RabbitMQ data was wiped):
+```bash
+docker exec newsintel-api-1 newsintel-admin requeue-stuck --operator <your-name>     # default: unchanged > 45 min
+```
+Expected: `{"requeued": N}`. Re-publishing is safe: the worker ignores jobs for stages that already finished.
+Stages in `running` are not requeued by default (RabbitMQ redelivers a dead worker's job by itself); use
+`--include-running` only if a stage has been `running` far longer than the video could take.
+
+## 18. Read the audit log [TESTED 2026-11-01]
+
+```bash
+curl -s -H "Authorization: Bearer $(token admin1)" "localhost:8000/api/v1/audit?limit=20" \
+  | jq -c '.[] | {ts, actor, action, resource_id, outcome}'
+```
+Requires role admin (others get 403). Denied access attempts appear with `outcome: "denied"`.
+
 ## Pending sections (filled in as milestones complete)
 
-Troubleshoot failed jobs · verify transcription · test AI inference · search · clips ·
-failed jobs · update models · update configuration · backup/restore · production deployment.
+Test AI inference on Kaggle · update models · update configuration · backup/restore · production deployment.

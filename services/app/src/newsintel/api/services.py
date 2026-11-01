@@ -7,6 +7,7 @@ from newsintel.config import Settings
 from newsintel.index.repository import Repository
 from newsintel.inference import InferenceClient
 from newsintel.queue import JobPublisher
+from newsintel.search.service import SearchService
 from newsintel.storage import ObjectStore
 
 
@@ -18,16 +19,19 @@ class Services:
     publisher: JobPublisher
     inference: InferenceClient
     audit: AuditLog
+    search: SearchService
 
     @classmethod
     def build(cls, settings: Settings) -> "Services":
+        repo, inference = Repository(settings), InferenceClient(settings)
         return cls(
             settings=settings,
-            repo=Repository(settings),
+            repo=repo,
             store=ObjectStore(settings),
             publisher=JobPublisher(settings),
-            inference=InferenceClient(settings),
+            inference=inference,
             audit=AuditLog(settings),
+            search=SearchService(settings, repo, inference),
         )
 
     def close(self) -> None:

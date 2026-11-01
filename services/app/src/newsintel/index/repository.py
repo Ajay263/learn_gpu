@@ -126,6 +126,12 @@ class Repository:
         with _LOCK:
             return list(s.where(s.video_id == video_id).collect())
 
+    def stuck_stages(self, statuses: Iterable[StageStatus], older_than: datetime) -> list[dict[str, Any]]:
+        s = self.t.stages
+        with _LOCK:
+            cond = s.status.isin([st.value for st in statuses]) & (s.updated_at < older_than)
+            return list(s.where(cond).select(s.video_id, s.stage, s.status, s.attempts, s.updated_at).collect())
+
     def stage_states(self, video_id: str) -> dict[Stage, StageStatus]:
         return {Stage(r["stage"]): StageStatus(r["status"]) for r in self.stages(video_id)}
 

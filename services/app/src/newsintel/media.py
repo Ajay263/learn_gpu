@@ -168,7 +168,7 @@ def extract_frame(src: Path, at_s: float, dest: Path, max_px: int) -> Path:
     return dest
 
 
-def cut_clip(src: Path, start_s: float, end_s: float, dest: Path) -> Path:
+def cut_clip(src: Path | str, start_s: float, end_s: float, dest: Path) -> Path:
     """Re-encoded H.264/AAC MP4 clip (frame-accurate; `-c copy` would snap to keyframes)."""
     if end_s <= start_s:
         raise ValueError("end must be after start")

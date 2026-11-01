@@ -42,6 +42,12 @@ nifi-redeploy: ## Recreate the NiFi flow (drops FlowFiles queued inside NiFi)
 nifi-relist: ## Re-ingest anything still sitting in landing/uploads/
 	$(PY) -W ignore infra/nifi/deploy_flow.py --relist
 
+dev-users: ## DEV ONLY: create Keycloak test users analyst1 / viewer2 / admin1 (password DEV_USER_PASSWORD)
+	docker exec -e KEYCLOAK_ADMIN_USER=$$(grep ^KEYCLOAK_ADMIN_USER= .env|cut -d= -f2) \
+	  -e KEYCLOAK_ADMIN_PASSWORD=$$(grep ^KEYCLOAK_ADMIN_PASSWORD= .env|cut -d= -f2) \
+	  -e DEV_USER_PASSWORD=$$(grep ^DEV_USER_PASSWORD= .env|cut -d= -f2) \
+	  -i newsintel-keycloak-1 bash < infra/keycloak/create-dev-users.sh
+
 fixtures: ## Generate deterministic test videos into tests/fixtures/
 	bash scripts/make-test-video.sh
 

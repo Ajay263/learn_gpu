@@ -193,6 +193,9 @@ services:
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set in .env}
       KC_HEALTH_ENABLED: "true"
       KC_HTTP_PORT: "8080"
+      # Issuer = the URL browsers use; containers may still reach Keycloak at http://keycloak:8080.
+      KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8081}
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
       JAVA_OPTS_KC_HEAP: "-Xms256m -Xmx512m"
     volumes: ["../keycloak:/opt/keycloak/data/import:ro"]
     ports: ["127.0.0.1:8081:8080"]

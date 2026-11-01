@@ -1,7 +1,5 @@
 """M7: retrieval against videos indexed by the running pipeline (fake inference on localhost:9100)."""
 
-import os
-
 import pytest
 
 from tests.integration.conftest import REPO_ROOT
@@ -11,12 +9,11 @@ pytestmark = pytest.mark.integration
 
 @pytest.fixture(scope="module")
 def search(repo):
-    os.environ["AI_INFERENCE_BASE_URL"] = "http://localhost:9100"  # host view of the fake gateway
-    from newsintel.config import Settings
     from newsintel.inference import InferenceClient
     from newsintel.search.service import SearchService
+    from tests.integration.conftest import integration_settings
 
-    s = Settings()
+    s = integration_settings(ai_inference_base_url="http://localhost:9100")  # host view of the fake gateway
     svc = SearchService(s, repo, InferenceClient(s))
     if not svc.retriever.allowed_videos(["collection-general"]):
         pytest.skip("no indexed videos — run test_pipeline_e2e first")

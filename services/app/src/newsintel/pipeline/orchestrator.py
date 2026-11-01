@@ -22,7 +22,7 @@ def advance(repo: _Repo, publisher: _Publisher, video_id: str) -> list[Stage]:
     """Idempotent: only PENDING stages are considered, and each is marked QUEUED before publishing.
 
     If publishing fails after QUEUED was written, the stage is picked up by `requeue_stuck`
-    (admin command / worker sweeper), so nothing is lost.
+    (`newsintel-admin requeue-stuck`), so nothing is lost.
     """
     to_run, new_states = resolve(repo.stage_states(video_id))
     current = repo.stage_states(video_id)

@@ -1,6 +1,5 @@
 """Shared fixtures for tests that run against the docker compose stack (`make up-core`)."""
 
-import os
 from pathlib import Path
 
 import boto3
@@ -47,12 +46,22 @@ def root_s3(env, s3_factory):
     return s3_factory(env["MINIO_ROOT_USER"], env["MINIO_ROOT_PASSWORD"])
 
 
+def integration_settings(**overrides):
+    """Settings from the repo's .env (host view of the stack), with explicit overrides.
+
+    The env file is passed explicitly: Settings reads NEWSINTEL_ENV_FILE only when newsintel.config is
+    first imported, which in a full-tree run happens while collecting unit tests. Overrides are passed as
+    arguments rather than via os.environ so they cannot leak into other test modules.
+    """
+    _load_env()  # skips when there is no .env
+    from newsintel.config import Settings
+
+    return Settings(_env_file=REPO_ROOT / ".env", **overrides)
+
+
 @pytest.fixture(scope="module")
 def repo():
     """Repository on the same Pixeltable directory the running services use."""
-    os.environ["NEWSINTEL_ENV_FILE"] = str(REPO_ROOT / ".env")
-    os.environ.pop("PIXELTABLE_DIR", None)
-    from newsintel.config import Settings
     from newsintel.index.repository import Repository
 
-    return Repository(Settings())
+    return Repository(integration_settings())

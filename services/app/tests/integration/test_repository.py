@@ -1,6 +1,5 @@
 """M4: Pixeltable repository against the compose Postgres. Uses an isolated Pixeltable directory."""
 
-import os
 import uuid
 
 import numpy as np
@@ -13,18 +12,15 @@ pytestmark = pytest.mark.integration
 
 @pytest.fixture(scope="module")
 def repo():
-    from tests.integration.conftest import REPO_ROOT
-
-    os.environ["NEWSINTEL_ENV_FILE"] = str(REPO_ROOT / ".env")
-    os.environ["PIXELTABLE_DIR"] = f"it_{uuid.uuid4().hex[:8]}"
-    from newsintel.config import Settings
     from newsintel.index.repository import Repository
+    from tests.integration.conftest import integration_settings
 
-    r = Repository(Settings())
+    pt_dir = f"it_{uuid.uuid4().hex[:8]}"  # isolated Pixeltable directory, dropped afterwards
+    r = Repository(integration_settings(pixeltable_dir=pt_dir))
     yield r
     import pixeltable as pxt
 
-    pxt.drop_dir(os.environ.pop("PIXELTABLE_DIR"), force=True)
+    pxt.drop_dir(pt_dir, force=True)
 
 
 def test_register_is_idempotent_and_initialises_stages(repo):
