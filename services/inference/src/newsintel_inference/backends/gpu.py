@@ -183,11 +183,14 @@ def _load_reranker():
 
 
 def _load_ocr():
-    from paddleocr import PaddleOCR
-    log.info("Loading PaddleOCR (3.x API)")
-    # PaddleOCR 3.x removed use_angle_cls / use_gpu / show_log — use minimal args only.
-    # lang="en" enables both English and Arabic detection/recognition in 3.x.
-    return PaddleOCR(lang="en")
+    import easyocr
+    log.info("Loading EasyOCR for langs: %s", _M_OCR_LANGS)
+    # EasyOCR avoids the CUDA-context conflict that kills Kaggle kernels with PaddleOCR 3.x.
+    # gpu=False: leave CUDA for the transformer models; EasyOCR on CPU is fast enough for frames.
+    langs = [l for l in _M_OCR_LANGS if l in ("ar", "en", "fa")]
+    if not langs:
+        langs = ["en"]
+    return easyocr.Reader(langs, gpu=False)
 
 
 # ── helper: image → base64 ────────────────────────────────────────────────────
@@ -293,52 +296,25 @@ class GpuBackend(Backend):
 
     def ocr(self, images: list[Image.Image], languages: list[str]) -> OcrResponse:
         import numpy as np
-        ocr_model = self._ocr.get()
+        reader = self._ocr.get()
         results = []
         for img in images:
             arr = np.array(img.convert("RGB"))
+            # EasyOCR returns: [(bbox_pts, text, confidence), ...]
+            # bbox_pts = [[x0,y0],[x1,y0],[x1,y1],[x0,y1]]
+            raw = reader.readtext(arr)
             lines: list[OcrLine] = []
             full_texts: list[str] = []
-            try:
-                # PaddleOCR 3.x pipeline API: ocr.predict() returns a list of result objects/dicts
-                raw = ocr_model.predict(arr)
-                if raw:
-                    item = raw[0]
-                    # 3.x result may be a dict or an object with attributes
-                    if hasattr(item, "rec_texts"):
-                        texts = item.rec_texts or []
-                        scores = item.rec_scores or []
-                        polys = item.det_polys or []
-                    elif isinstance(item, dict):
-                        texts = item.get("rec_texts", [])
-                        scores = item.get("rec_scores", [])
-                        polys = item.get("det_polys", [])
-                    else:
-                        texts, scores, polys = [], [], []
-                    for text, score, poly in zip(texts, scores, polys):
-                        xs = [p[0] for p in poly] if poly else [0]
-                        ys = [p[1] for p in poly] if poly else [0]
-                        lines.append(OcrLine(
-                            text=str(text), confidence=float(score),
-                            bbox=[min(xs), min(ys), max(xs), max(ys)],
-                        ))
-                        full_texts.append(str(text))
-            except (AttributeError, TypeError):
-                # Fallback: PaddleOCR 2.x API → ocr.ocr(arr, cls=True)
-                # Returns [[[bbox_pts, (text, conf)], ...]]
-                raw2 = ocr_model.ocr(arr, cls=True)  # type: ignore[attr-defined]
-                for block in (raw2 or []):
-                    for line in (block or []):
-                        bbox_raw, (text, conf) = line
-                        xs = [p[0] for p in bbox_raw]
-                        ys = [p[1] for p in bbox_raw]
-                        lines.append(OcrLine(
-                            text=text, confidence=float(conf),
-                            bbox=[min(xs), min(ys), max(xs), max(ys)],
-                        ))
-                        full_texts.append(text)
+            for bbox_pts, text, conf in raw:
+                xs = [p[0] for p in bbox_pts]
+                ys = [p[1] for p in bbox_pts]
+                lines.append(OcrLine(
+                    text=text, confidence=float(conf),
+                    bbox=[min(xs), min(ys), max(xs), max(ys)],
+                ))
+                full_texts.append(text)
             results.append(OcrResult(text="\n".join(full_texts), lines=lines))
-        return OcrResponse(results=results, model=ModelRef(name="paddleocr"))
+        return OcrResponse(results=results, model=ModelRef(name="easyocr"))
 
     # ── Text embeddings (BGE-M3) ──────────────────────────────────────────────
 

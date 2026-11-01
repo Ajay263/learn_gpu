@@ -25,7 +25,6 @@ sentence-transformers>=3.0  # BGE-M3 and BGE-reranker
 openai-whisper              # no version pin; latest stable
 # Requires ffmpeg on PATH — present in Kaggle base image
 
-# ── OCR ───────────────────────────────────────────────────────────────────────
-paddlepaddle>=3.0.0         # 2.6.x no longer published; 3.x is the current series
-paddleocr>=2.9.0
-# Downloads ~100 MB OCR weights on first use to ~/.paddleocr/
+# ── OCR ─────────────────────────────────────────────────────────────────────
+easyocr>=1.7.2              # Arabic + English OCR; Apache-2.0; avoids PaddleOCR CUDA-context crash
+# Downloads ~200 MB models to ~/.EasyOCR/ on first use
