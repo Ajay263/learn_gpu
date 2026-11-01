@@ -14,7 +14,7 @@ Legend: ✅ done & tested · 🟡 in progress · ⬜ not started · ⚠️ block
 | M3 | Ingestion: SFTPGo → NiFi → MinIO, checksum, manifest, dedupe, enqueue; API callback; audit log; app image | ✅ | `test_ingestion.py` 3 passed (new / duplicate / rejected); queue + audit verified |
 | M4 | Pixeltable schema, repository, stage graph | ✅ | `test_stages.py` 8 passed; `test_repository.py` 3 passed (integration) |
 | M5 | Inference service (Kaggle) + tunnel + `make set-llm-url` | ⬜ | |
-| M6 | Processing worker: audio, ASR, scenes, frames, captions, OCR, embeddings, retries, DLQ | ⬜ | |
+| M6 | Processing worker: audio, ASR, scenes, frames, captions, OCR, embeddings, retries, DLQ | ✅ (fake inference) | `test_worker.py` 9 passed; `test_pipeline_e2e.py` 2 passed incl. outage recovery |
 | M7 | Search + RAG (hybrid, rerank, grounded answers) | ⬜ | |
 | M8 | MCP server + agent orchestration | ⬜ | |
 | M9 | FastAPI app, auth, audit, clips, playback | ⬜ | |
@@ -29,6 +29,7 @@ Legend: ✅ done & tested · 🟡 in progress · ⬜ not started · ⚠️ block
 | 2026-11-01 | `pytest -m integration tests/integration/test_infra.py` | 7 passed |
 | 2026-11-01 | `pytest` (unit) | 14 passed; ruff clean |
 | 2026-11-01 | unit 22 passed; integration 10 passed | after M4 |
+| 2026-11-01 | `test_pipeline_e2e.py` | 2 passed (full pipeline; inference outage → retry → indexed) |
 | 2026-11-01 | `test_ingestion.py` | 3 passed (E2E SFTP→NiFi→MinIO→API→Pixeltable→RabbitMQ) |
 | 2026-11-01 | Pixeltable spike: external Postgres, `s3://` MinIO read, UDF embedding index | all 3 confirmed |
 

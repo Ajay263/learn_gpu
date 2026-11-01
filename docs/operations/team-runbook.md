@@ -138,7 +138,54 @@ docker exec -e PGPASSWORD=$(grep ^APP_DB_PASSWORD .env|cut -d= -f2) newsintel-po
 | File moved to `landing/rejected/` | `manifests/rejected/*.json` → `reject_reason` | Wrong type / too large / API 4xx (see `api_response`). Re-upload a corrected file. |
 | Upload duplicate | Manifest shows `"duplicate": "true"` | Expected: same bytes = same video. No reprocessing. |
 
+## 9. Start the processing worker [TESTED 2026-11-01]
+
+```bash
+make build                 # after code changes (~25 s cached, ~7 min cold)
+make up-app FAKE=1         # core + api + worker + fake inference (no GPU needed)
+make up-app                # same, but using the real AI_INFERENCE_BASE_URL (Kaggle / on-prem)
+```
+
+## 10. Monitor processing [TESTED 2026-11-01]
+
+```bash
+make logs S=worker | grep -E 'stage_(done|retry_scheduled|failed)|video_settled'
+```
+Expected for a healthy video: `stage_done` for probe, audio, scenes, asr, captions, ocr, embed, then
+`video_settled ... indexed`. Status values: `registered → processing → indexed | partial | failed`.
+
+Per-stage detail (status, attempts, last error, model) from Python:
+```bash
+cd services/app && NEWSINTEL_ENV_FILE=../../.env .venv/bin/python -c "
+from newsintel.config import get_settings; from newsintel.index.repository import Repository
+r=Repository(get_settings())
+for v in r.list_videos(limit=5): print(v['video_id'], v['status'], v['filename'])
+"
+```
+RabbitMQ (http://localhost:15672 → Queues): `stage.jobs` = waiting work, `stage.retry.*` = waiting out an
+outage, `stage.dead` = needs a human.
+
+## 11. Verify transcription [TESTED 2026-11-01 with fake inference]
+
+```bash
+cd services/app && NEWSINTEL_ENV_FILE=../../.env .venv/bin/python -c "
+from newsintel.config import get_settings; from newsintel.index.repository import Repository
+r=Repository(get_settings()); vid='vid_...'
+for s in r.segments(vid): print(s['start_s'], s['end_s'], s['language'], s['text'])
+"
+```
+
+## 12. What happens when inference (Kaggle) goes away [TESTED 2026-11-01]
+
+Nothing needs to be done by hand. Inference stages move to `retrying` (`last_error` contains
+`InferenceUnavailable`), non-inference stages finish, and jobs wait in `stage.retry.30s → 5m → 30m`.
+When the endpoint is back (`make set-llm-url` after a new Kaggle session), the next retry succeeds.
+After 8 attempts (~2 h) a stage becomes `failed` and a copy goes to `stage.dead`; use the retry API
+(section "Troubleshoot failed jobs") to resume.
+
+Proven by `tests/integration/test_pipeline_e2e.py::test_inference_outage_is_retried_and_recovers_without_intervention`.
+
 ## Pending sections (filled in as milestones complete)
 
-Monitor processing · verify transcription · test AI inference · search · clips ·
+Troubleshoot failed jobs · verify transcription · test AI inference · search · clips ·
 failed jobs · update models · update configuration · backup/restore · production deployment.

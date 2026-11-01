@@ -37,6 +37,7 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 
 from newsintel.config import Settings
 from newsintel.logging import get_logger
+from newsintel.metrics import INFERENCE_CALLS, INFERENCE_LATENCY
 
 log = get_logger(__name__)
 T = TypeVar("T", bound=BaseModel)
@@ -110,18 +111,25 @@ class InferenceClient:
     )
     def _request(self, method: str, path: str, model: type[T], **kwargs) -> T:
         self._breaker.check()
+        t0 = time.perf_counter()
         try:
             resp = self._http.request(method, path, **kwargs)
         except (httpx.TransportError, httpx.TimeoutException) as e:
             self._breaker.record(False)
+            INFERENCE_CALLS.labels(path, "unavailable").inc()
             raise InferenceUnavailable(f"{path}: {type(e).__name__}: {e}") from e
+        finally:
+            INFERENCE_LATENCY.labels(path).observe(time.perf_counter() - t0)
         if resp.status_code in RETRYABLE_STATUS or resp.status_code in (401, 403):
             # 401/403 = key mismatch after a Kaggle restart: an operator fix, so wait rather than fail the item.
             self._breaker.record(False)
+            INFERENCE_CALLS.labels(path, "unavailable").inc()
             raise InferenceUnavailable(f"{path}: HTTP {resp.status_code}: {resp.text[:200]}")
         self._breaker.record(True)
         if resp.status_code >= 400:
+            INFERENCE_CALLS.labels(path, "rejected").inc()
             raise InferenceRejected(f"{path}: HTTP {resp.status_code}: {resp.text[:500]}")
+        INFERENCE_CALLS.labels(path, "ok").inc()
         return model.model_validate(resp.json())
 
     # ── capabilities ──────────────────────────────────────────────────────────

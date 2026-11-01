@@ -15,6 +15,7 @@ import os
 import re
 import wave
 import zlib
+from collections import Counter
 from io import BytesIO
 from pathlib import Path
 
@@ -65,6 +66,10 @@ def _dominant_colour(img: Image.Image) -> str:
     return min(_COLOURS, key=lambda c: float(np.sum((np.array(_COLOURS[c]) - rgb) ** 2)))
 
 
+def _lang(text: str) -> str:
+    return "ar" if any("\u0600" <= ch <= "\u06ff" for ch in text) else "en"
+
+
 def _wav_duration(audio: bytes) -> float | None:
     try:
         with wave.open(BytesIO(audio)) as w:
@@ -90,7 +95,7 @@ class FakeBackend(Backend):
 
     def asr(self, audio: bytes, filename: str, language: str | None) -> AsrResponse:
         duration = _wav_duration(audio) or _SEGMENT_S
-        n = max(1, int(np.ceil(duration / _SEGMENT_S)))
+        n = max(1, int(np.ceil((duration - 0.25) / _SEGMENT_S)))  # ignore codec padding tails
         lines = self._script or [f"placeholder transcript segment {i}" for i in range(n)]
         segments = [
             AsrSegment(
@@ -98,10 +103,11 @@ class FakeBackend(Backend):
                 end=min(duration, (i + 1) * _SEGMENT_S),
                 text=lines[i % len(lines)],
                 confidence=0.9,
+                language=_lang(lines[i % len(lines)]),
             )
             for i in range(n)
         ]
-        detected = language or ("ar" if any("؀" <= ch <= "ۿ" for s in segments for ch in s.text) else "en")
+        detected = language or Counter(s.language for s in segments).most_common(1)[0][0]
         return AsrResponse(language=detected, duration_s=duration, segments=segments, model=self._ref("asr"))
 
     def caption(self, images: list[Image.Image], prompt: str, max_tokens: int) -> CaptionResponse:

@@ -46,6 +46,7 @@ class AsrSegment(BaseModel):
     end: float = Field(ge=0)
     text: str
     confidence: float | None = Field(default=None, ge=0, le=1)
+    language: str | None = Field(default=None, description="Per-segment language when the model detects switches")
 
 
 class AsrResponse(BaseModel):
