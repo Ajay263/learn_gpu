@@ -56,7 +56,9 @@ line-length = 120
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "S"]
-ignore = ["S101", "S603", "S607", "B008"]
+# E711: Pixeltable builds SQL from `col == None`; `is None` would silently become a Python bool.
+# B008: FastAPI dependency idiom (File(...), Depends(...)).
+ignore = ["S101", "S603", "S607", "B008", "E711"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
