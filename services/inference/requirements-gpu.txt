@@ -1,0 +1,34 @@
+# GPU inference dependencies — install ONLY on the Kaggle / on-prem GPU host.
+# Pin exact versions so Kaggle sessions reproduce correctly.
+# Generated 2026-11-01. Verify compatibility against Kaggle's CUDA version before production.
+
+# ── Core gateway (also in pyproject.toml, repeated here for one-shot install) ─
+pydantic==2.11.4
+fastapi==0.115.12
+uvicorn[standard]==0.34.2
+python-multipart==0.0.20
+httpx==0.28.1
+numpy==1.26.4
+pillow==10.4.0
+
+# ── ASR (Whisper) ────────────────────────────────────────────────────────────
+openai-whisper==20240930
+# Whisper needs ffmpeg on PATH (already present in Kaggle base image)
+
+# ── Vision-language model (Qwen2-VL) and text LLM ────────────────────────────
+torch==2.4.1          # Kaggle default CUDA 12.1 build
+torchvision==0.19.1
+transformers==4.50.3
+accelerate==1.4.0
+bitsandbytes==0.44.1  # 4-bit quantisation; requires CUDA
+sentencepiece==0.2.0  # Qwen tokenizer
+qwen-vl-utils==0.0.10 # image preprocessing helpers for Qwen2-VL
+
+# ── Embeddings ────────────────────────────────────────────────────────────────
+sentence-transformers==3.4.1  # BGE-M3 and BGE-reranker
+
+# ── OCR ───────────────────────────────────────────────────────────────────────
+paddlepaddle==2.6.1
+paddleocr==2.9.1
+# Note: PaddleOCR downloads its models on first use to ~/.paddleocr/
+#       Pre-download in the notebook with: from paddleocr import PaddleOCR; PaddleOCR(lang="en")

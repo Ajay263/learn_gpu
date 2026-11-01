@@ -280,6 +280,28 @@ curl -s -H "Authorization: Bearer $(token admin1)" "localhost:8000/api/v1/audit?
 ```
 Requires role admin (others get 403). Denied access attempts appear with `outcome: "denied"`.
 
+## 19. Start the Kaggle GPU inference server [UNTESTED — requires Kaggle account + GPU]
+
+Full instructions: `docs/development/kaggle-gpu-setup.md`.
+
+Quick summary:
+1. Open `notebooks/kaggle_inference_server.ipynb` in Kaggle with GPU T4 × 2
+2. Add Kaggle secret `INFERENCE_API_KEY` = value from your `.env`
+3. Edit Cell 3: replace `YOUR_USERNAME` with your GitHub username
+4. Run all cells — Cell 4 downloads ~14 GB (first time only, ~10 min)
+5. Copy the tunnel URL from Cell 6 output (e.g. `https://abc.trycloudflare.com`)
+6. In Codespaces: `make set-llm-url URL=https://abc.trycloudflare.com`
+7. Verify: `make check-llm` → should show `"backend": "gpu"` and all capabilities
+
+When the Kaggle session expires (up to 12 h), stages retry automatically.
+Start a new session and repeat from step 5 with the new URL.
+
+To fall back to fake inference (e.g. for a demo without Kaggle):
+```bash
+make set-llm-url URL=http://inference-fake:9100
+make up-app FAKE=1
+```
+
 ## Pending sections (filled in as milestones complete)
 
-Test AI inference on Kaggle · update models · update configuration · backup/restore · production deployment.
+Update models · update configuration · backup/restore · production deployment.

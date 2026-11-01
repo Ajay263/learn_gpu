@@ -13,10 +13,10 @@ Legend: ✅ done & tested · 🟡 in progress · ⬜ not started · ⚠️ block
 | M2 | Core library: config, storage client, inference client, logging; inference contract + gateway + fake backend | ✅ | `tests/unit/test_core.py` 14 passed |
 | M3 | Ingestion: SFTPGo → NiFi → MinIO, checksum, manifest, dedupe, enqueue; API callback; audit log; app image | ✅ | `test_ingestion.py` 3 passed (new / duplicate / rejected); queue + audit verified |
 | M4 | Pixeltable schema, repository, stage graph | ✅ | `test_stages.py` 8 passed; `test_repository.py` 3 passed (integration) |
-| M5 | Inference service (Kaggle) + tunnel + `make set-llm-url` | ⬜ | |
 | M6 | Processing worker: audio, ASR, scenes, frames, captions, OCR, embeddings, retries, DLQ | ✅ (fake inference) | `test_worker.py` 9 passed; `test_pipeline_e2e.py` 2 passed incl. outage recovery |
 | M7 | Search + RAG (hybrid, rerank, grounded answers) | ✅ (fake inference) | `test_search.py` unit 12 + integration 6 passed |
 | M8 | MCP server + agent orchestration | ⬜ | |
+| M5 | Inference gateway GPU backend (Kaggle) | ✅ (code) 🟡 (untested, needs real GPU) | `gpu.py` backend, Kaggle notebook, `make set-llm-url` / `check-llm` |
 | M9 | FastAPI app, auth, audit, clips, playback | ✅ (fake inference) | `test_api.py` 8 passed with real Keycloak tokens; unit 57 passed; runbook §13–18 executed verbatim |
 | M10 | Frontend | ⬜ | |
 | M11 | Observability (Prometheus/Grafana) | ⬜ | |
@@ -55,4 +55,4 @@ See `docs/architecture/architecture-decisions.md`.
 | `newsintel-cli` client allows password grant | Weaker than browser PKCE flow | Dev/test only; disable in production (auth doc checklist) |
 | Codespace memory pressure can kill `docker compose build` with no clear error | Containers silently keep running old code | Check `docker images newsintel-app` timestamp after builds; build with nothing else heavy running |
 | No automatic sweeper for lost queue messages | Stage stays `queued` until an operator acts | `newsintel-admin requeue-stuck` (runbook §17); could be scheduled via cron |
-| Model licences not yet verified | Cannot download weights | M5 licence review before any download. |
+| Model licences verified for MVP checkpoints | Models may update licences | Re-verify specific revision before production; see `docs/ai/model-selection.md` |

@@ -8,7 +8,7 @@ CORE := minio sftpgo nifi postgres rabbitmq
 # reports exited containers as failures even when they exit 0.
 INIT := minio-init sftpgo-init
 
-.PHONY: help env up up-core up-all up-app build down down-volumes ps logs smoke-infra nifi-deploy nifi-redeploy nifi-relist fixtures test test-integration
+.PHONY: help env up up-core up-all up-app build down down-volumes ps logs smoke-infra nifi-deploy nifi-redeploy nifi-relist fixtures test test-integration set-llm-url check-llm restart-app dev-users
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-16s\033[0m %s\n",$$1,$$2}'
@@ -74,3 +74,31 @@ logs: ## Tail logs (S=service to filter, e.g. make logs S=nifi)
 
 smoke-infra: .env ## Verify buckets, policies, SFTP upload path, databases
 	cd services/app && .venv/bin/pytest -m integration -q tests/integration/test_infra.py
+
+# ── Kaggle / inference ────────────────────────────────────────────────────────
+set-llm-url: .env ## Point the app at a new inference URL: make set-llm-url URL=https://xxx.trycloudflare.com
+	@[ -n "$(URL)" ] || { echo "Usage: make set-llm-url URL=https://xxx.trycloudflare.com" >&2; exit 1; }
+	@# Update AI_INFERENCE_BASE_URL in .env (add if absent, replace if present)
+	@if grep -q '^AI_INFERENCE_BASE_URL=' .env; then \
+	    sed -i "s|^AI_INFERENCE_BASE_URL=.*|AI_INFERENCE_BASE_URL=$(URL)|" .env; \
+	else \
+	    echo "AI_INFERENCE_BASE_URL=$(URL)" >> .env; \
+	fi
+	@echo "Updated .env: AI_INFERENCE_BASE_URL=$(URL)"
+	@echo "Restarting API and worker…"
+	$(COMPOSE) --profile app up -d --wait api worker
+	@echo "Done. Verify with: make check-llm"
+
+check-llm: .env ## Ping the configured inference gateway (shows model status)
+	@set -e; \
+	URL=$$(grep '^AI_INFERENCE_BASE_URL=' .env | cut -d= -f2); \
+	KEY=$$(grep '^AI_INFERENCE_API_KEY=' .env | cut -d= -f2); \
+	HOST_URL=$$(echo "$$URL" | sed 's|http://inference-fake:|http://localhost:|'); \
+	echo "Gateway (internal): $$URL"; \
+	echo "Gateway (host):     $$HOST_URL"; \
+	curl -sf "$$HOST_URL/livez" && echo "  livez OK" || echo "  livez FAILED (is inference-fake running? try: make up-app FAKE=1)"; \
+	curl -sf "$$HOST_URL/v1/health" -H "X-API-Key: $$KEY" | python3 -m json.tool 2>/dev/null || \
+	    echo "  health check failed (gateway down or wrong API key)"
+
+restart-app: ## Restart API and worker (after .env changes)
+	$(COMPOSE) --profile app restart api worker
