@@ -93,7 +93,10 @@ class AuditLog:
         if resource_id:
             where.append("resource_id = %s")
             args.append(resource_id)
-        sql = "SELECT id, ts, actor, actor_type, action, resource_type, resource_id, outcome, request_id, detail FROM audit_events"
+        sql = (
+            "SELECT id, ts, actor, actor_type, action, resource_type, resource_id, outcome, request_id, detail"
+            " FROM audit_events"
+        )
         if where:
             sql += " WHERE " + " AND ".join(where)
         sql += " ORDER BY ts DESC LIMIT %s"
