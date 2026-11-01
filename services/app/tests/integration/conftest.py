@@ -1,5 +1,6 @@
 """Shared fixtures for tests that run against the docker compose stack (`make up-core`)."""
 
+import os
 from pathlib import Path
 
 import boto3
@@ -39,3 +40,19 @@ def s3_factory(env):
         )
 
     return make
+
+
+@pytest.fixture(scope="module")
+def root_s3(env, s3_factory):
+    return s3_factory(env["MINIO_ROOT_USER"], env["MINIO_ROOT_PASSWORD"])
+
+
+@pytest.fixture(scope="module")
+def repo():
+    """Repository on the same Pixeltable directory the running services use."""
+    os.environ["NEWSINTEL_ENV_FILE"] = str(REPO_ROOT / ".env")
+    os.environ.pop("PIXELTABLE_DIR", None)
+    from newsintel.config import Settings
+    from newsintel.index.repository import Repository
+
+    return Repository(Settings())

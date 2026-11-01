@@ -4,13 +4,12 @@ Needs: make up-app FAKE=1, NiFi flow deployed, fixtures generated, FAKE_ASR_SCRI
 """
 
 import subprocess
-import time
 
 import pytest
 
 from newsintel.pipeline.stages import Stage, StageStatus
 from tests.integration.conftest import REPO_ROOT
-from tests.integration.test_ingestion import FIXTURE, repo, root_s3, sftp_put, wait_for  # noqa: F401
+from tests.integration.test_ingestion import FIXTURE, sftp_put, wait_for
 
 pytestmark = pytest.mark.integration
 COMPOSE = [
@@ -79,4 +78,3 @@ def test_inference_outage_is_retried_and_recovers_without_intervention(env, repo
     wait_for(lambda: status_of(repo, vid) == "indexed", timeout=420, interval=5, what="recovery after outage")
     asr = next(r for r in repo.stages(vid) if r["stage"] == "asr")
     assert asr["attempts"] >= 2 and asr["status"] == "done"
-    time.sleep(0)

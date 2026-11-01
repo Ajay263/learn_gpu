@@ -6,7 +6,6 @@ Needs: make up-core, api container running, NiFi flow deployed (infra/nifi/deplo
 import hashlib
 import io
 import json
-import os
 import time
 import uuid
 
@@ -27,21 +26,6 @@ def wait_for(fn, timeout=120, interval=2, what="condition"):
             return result
         time.sleep(interval)
     raise AssertionError(f"timed out waiting for {what}")
-
-
-@pytest.fixture(scope="module")
-def root_s3(env, s3_factory):
-    return s3_factory(env["MINIO_ROOT_USER"], env["MINIO_ROOT_PASSWORD"])
-
-
-@pytest.fixture(scope="module")
-def repo():
-    os.environ["NEWSINTEL_ENV_FILE"] = str(REPO_ROOT / ".env")
-    os.environ.pop("PIXELTABLE_DIR", None)  # same directory the API writes to
-    from newsintel.config import Settings
-    from newsintel.index.repository import Repository
-
-    return Repository(Settings())
 
 
 def sftp_put(env, data: bytes, remote: str) -> None:
