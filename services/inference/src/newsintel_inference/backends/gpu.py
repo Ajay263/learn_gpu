@@ -1,7 +1,7 @@
 """Real GPU backend: all models loaded from HuggingFace/local weights on a CUDA device.
 
 Model selection (all open-weight, verified licences):
-  ASR        : openai/whisper-large-v3  (MIT)          — Arabic + English, state-of-art
+  ASR        : openai/whisper-large-v3  (MIT)          — Arabic + English, runs on CPU to save VRAM
   Caption    : Qwen/Qwen2-VL-7B-Instruct (Apache-2.0) — vision-language, Arabic aware
   OCR        : PaddleOCR (Apache-2.0)                  — Arabic+English, CPU-ok
   Text embed : BAAI/bge-m3 (MIT)                       — multilingual, 1024-dim
@@ -18,7 +18,7 @@ GPU memory budget (T4 / 16 GB typical on Kaggle):
   bge-m3                           : ~1.2 GB
   siglip-so400m                    : ~1.0 GB
   bge-reranker-v2-m3               : ~0.5 GB
-  whisper-large-v3                 : ~1.6 GB
+  whisper-large-v3                 : CPU only (saves VRAM for VLM); set ASR_DEVICE=cuda to override
 
 Because the T4 has 16 GB we cannot run both VLM and chat LLM simultaneously. The backend shares the
 quantised Qwen2-VL for both captioning and chat (VL models accept text-only inputs). If a dedicated
@@ -115,9 +115,11 @@ class _Lazy:
 # ── loaders ────────────────────────────────────────────────────────────────────
 
 def _load_whisper():
-    import torch
     import whisper  # openai-whisper
-    dev = _device()
+    # Load Whisper on CPU by default to preserve all GPU VRAM for the VLM.
+    # CPU transcription is ~5–10× real-time for medium-sized audio — acceptable for batch.
+    # Set ASR_DEVICE=cuda to override when you have spare VRAM (e.g. A100 / T4x2).
+    dev = os.environ.get("ASR_DEVICE", "cpu")
     log.info("Loading Whisper %s on %s", _M_ASR, dev)
     # Strip "openai/" prefix if present (whisper.load_model takes the variant name)
     variant = _M_ASR.split("/")[-1]  # e.g. "whisper-large-v3" -> "large-v3"
