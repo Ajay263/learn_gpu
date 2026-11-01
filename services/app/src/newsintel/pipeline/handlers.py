@@ -248,9 +248,11 @@ def run_embed(ctx: Context, video_id: str, batch: int = 32) -> StageOutcome:
             resp = ctx.inference.embed_texts([r[source] for r in part], purpose="document")
             models["text"] = _model(resp.model)
             ctx.repo.update_scenes(
-                [{"scene_id": r["scene_id"], column: np.asarray(v, dtype=np.float32), "embed_model": models["text"]}
-                 for r, v in zip(part, resp.vectors, strict=True)]
-            )  # fmt: skip
+                [
+                    {"scene_id": r["scene_id"], column: np.asarray(v, dtype=np.float32), "embed_model": models["text"]}
+                    for r, v in zip(part, resp.vectors, strict=True)
+                ]
+            )
             counts[column] += len(part)
 
     imgs = ctx.repo.scenes_missing(video_id, "image_embedding")

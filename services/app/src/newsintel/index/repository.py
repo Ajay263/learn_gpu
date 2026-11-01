@@ -205,7 +205,9 @@ class Repository:
         seg = self.t.segments
         with _LOCK:
             return list(
-                seg.where((seg.video_id == video_id) & (seg.embedding == None))  # noqa: E711 (Pixeltable expr)
+                seg.where(
+                    (seg.video_id == video_id) & (seg.embedding == None)
+                )  # Pixeltable expr, not Python None check
                 .select(seg.segment_id, seg.text)
                 .collect()
             )
@@ -230,12 +232,20 @@ class Repository:
             return list(
                 sc.where(sc.video_id == video_id)
                 .select(
-                    sc.scene_id, sc.scene_idx, sc.start_s, sc.end_s, sc.keyframe_s, sc.keyframe_uri,
-                    sc.caption, sc.caption_model, sc.ocr_text, sc.ocr_model,
+                    sc.scene_id,
+                    sc.scene_idx,
+                    sc.start_s,
+                    sc.end_s,
+                    sc.keyframe_s,
+                    sc.keyframe_uri,
+                    sc.caption,
+                    sc.caption_model,
+                    sc.ocr_text,
+                    sc.ocr_model,
                 )
                 .order_by(sc.scene_idx)
                 .collect()
-            )  # fmt: skip
+            )
 
     def update_scenes(self, rows: list[dict[str, Any]]) -> None:
         if rows:
@@ -245,8 +255,8 @@ class Repository:
     def scenes_missing(self, video_id: str, column: str, source: str | None = None) -> list[dict[str, Any]]:
         """Scenes whose `column` is NULL (optionally only where `source` column is non-empty)."""
         sc = self.t.scenes
-        cond = (sc.video_id == video_id) & (getattr(sc, column) == None)  # noqa: E711
+        cond = (sc.video_id == video_id) & (getattr(sc, column) == None)
         if source:
-            cond = cond & (getattr(sc, source) != None) & (getattr(sc, source) != "")  # noqa: E711
+            cond = cond & (getattr(sc, source) != None) & (getattr(sc, source) != "")
         with _LOCK:
             return list(sc.where(cond).select(sc.scene_id, sc.keyframe_uri, sc.caption, sc.ocr_text).collect())

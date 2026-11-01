@@ -141,8 +141,11 @@ def test_retry_tiers(attempt, tier):
 
 
 def test_asr_segments_are_offset_to_absolute_video_time():
-    segs = [AsrSegment(start=0.5, end=4.0, text=" مرحبا "), AsrSegment(start=4.0, end=9.5, text="  "),
-            AsrSegment(start=9.5, end=12.0, text="Hello")]  # fmt: skip
+    segs = [
+        AsrSegment(start=0.5, end=4.0, text=" مرحبا "),
+        AsrSegment(start=4.0, end=9.5, text="  "),
+        AsrSegment(start=9.5, end=12.0, text="Hello"),
+    ]
     rows = offset_segments(segs, chunk_idx=2, chunk_s=300, video_id=VID, language="ar", model="asr@1")
     assert [(r["start_s"], r["end_s"]) for r in rows] == [(600.5, 604.0), (609.5, 612.0)]  # blank segment dropped
     assert rows[0]["segment_id"] == f"{VID}:c0002:s0000" and rows[0]["text"] == "مرحبا"

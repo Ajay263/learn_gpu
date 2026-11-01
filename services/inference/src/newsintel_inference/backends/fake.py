@@ -50,6 +50,33 @@ _COLOURS = {
     "grey": (128, 128, 128),
 }
 _SEGMENT_S = 10.0
+_STOP = {
+    "the",
+    "and",
+    "what",
+    "did",
+    "about",
+    "say",
+    "said",
+    "which",
+    "where",
+    "who",
+    "how",
+    "with",
+    "for",
+    "that",
+    "this",
+    "from",
+    "was",
+    "were",
+    "video",
+    "videos",
+    "news",
+    "show",
+    "find",
+    "any",
+    "there",
+}
 
 
 def _tokens(text: str) -> list[str]:
@@ -150,7 +177,8 @@ class FakeBackend(Backend):
         return EmbedResponse(vectors=vecs, dim=self.embed_image_dim, model=self._ref("embed_image"))
 
     def rerank(self, query: str, documents: list[str], top_n: int | None) -> RerankResponse:
-        q = set(_tokens(query))
+        # Content words only: like a real cross-encoder, sharing "the"/"about" is not relevance.
+        q = {t for t in _tokens(query) if len(t) > 2 and t not in _STOP}
         scores = [len(q & set(_tokens(d))) / (len(q) or 1) for d in documents]
         order = sorted(range(len(documents)), key=lambda i: scores[i], reverse=True)[: top_n or len(documents)]
         return RerankResponse(

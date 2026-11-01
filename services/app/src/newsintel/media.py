@@ -92,11 +92,30 @@ def extract_audio_chunks(src: Path, out_dir: Path, chunk_s: int, duration_s: flo
     for old in out_dir.glob("chunk_*.wav"):
         old.unlink()
     _run(
-        [FFMPEG, "-hide_banner", "-nostdin", "-y", "-i", str(src), "-vn", "-ac", "1", "-ar", "16000",
-         "-c:a", "pcm_s16le", "-f", "segment", "-segment_time", str(chunk_s), "-reset_timestamps", "1",
-         str(out_dir / "chunk_%04d.wav")],
+        [
+            FFMPEG,
+            "-hide_banner",
+            "-nostdin",
+            "-y",
+            "-i",
+            str(src),
+            "-vn",
+            "-ac",
+            "1",
+            "-ar",
+            "16000",
+            "-c:a",
+            "pcm_s16le",
+            "-f",
+            "segment",
+            "-segment_time",
+            str(chunk_s),
+            "-reset_timestamps",
+            "1",
+            str(out_dir / "chunk_%04d.wav"),
+        ],
         timeout=max(300, duration_s * 2),
-    )  # fmt: skip
+    )
     chunks = sorted(out_dir.glob("chunk_*.wav"))
     expected = max(1, math.ceil(duration_s / chunk_s))
     if not chunks or abs(len(chunks) - expected) > 1:
@@ -125,10 +144,25 @@ def extract_frame(src: Path, at_s: float, dest: Path, max_px: int) -> Path:
     dest.parent.mkdir(parents=True, exist_ok=True)
     scale = f"scale='if(gt(iw,ih),min({max_px},iw),-2)':'if(gt(iw,ih),-2,min({max_px},ih))'"
     _run(
-        [FFMPEG, "-hide_banner", "-nostdin", "-y", "-ss", f"{at_s:.3f}", "-i", str(src), "-frames:v", "1",
-         "-vf", scale, "-q:v", "3", str(dest)],
+        [
+            FFMPEG,
+            "-hide_banner",
+            "-nostdin",
+            "-y",
+            "-ss",
+            f"{at_s:.3f}",
+            "-i",
+            str(src),
+            "-frames:v",
+            "1",
+            "-vf",
+            scale,
+            "-q:v",
+            "3",
+            str(dest),
+        ],
         timeout=120,
-    )  # fmt: skip
+    )
     if not dest.exists() or dest.stat().st_size == 0:
         raise MediaError(f"no frame extracted at {at_s}s")
     return dest
@@ -140,9 +174,33 @@ def cut_clip(src: Path, start_s: float, end_s: float, dest: Path) -> Path:
         raise ValueError("end must be after start")
     dest.parent.mkdir(parents=True, exist_ok=True)
     _run(
-        [FFMPEG, "-hide_banner", "-nostdin", "-y", "-ss", f"{start_s:.3f}", "-to", f"{end_s:.3f}", "-i", str(src),
-         "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k",
-         "-movflags", "+faststart", str(dest)],
+        [
+            FFMPEG,
+            "-hide_banner",
+            "-nostdin",
+            "-y",
+            "-ss",
+            f"{start_s:.3f}",
+            "-to",
+            f"{end_s:.3f}",
+            "-i",
+            str(src),
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-crf",
+            "23",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "128k",
+            "-movflags",
+            "+faststart",
+            str(dest),
+        ],
         timeout=max(120, (end_s - start_s) * 4),
-    )  # fmt: skip
+    )
     return dest

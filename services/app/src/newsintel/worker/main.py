@@ -73,8 +73,13 @@ class Worker:
         elapsed = time.perf_counter() - t0
         STAGE_DURATION.labels(job.stage.value).observe(elapsed)
         STAGE_OUTCOMES.labels(job.stage.value, "done").inc()
-        repo.set_stage(job.video_id, job.stage, StageStatus.DONE, model=outcome.model,
-                       detail={**outcome.detail, "elapsed_s": round(elapsed, 2)})  # fmt: skip
+        repo.set_stage(
+            job.video_id,
+            job.stage,
+            StageStatus.DONE,
+            model=outcome.model,
+            detail={**outcome.detail, "elapsed_s": round(elapsed, 2)},
+        )
         log.info("stage_done", video_id=job.video_id, stage=job.stage, elapsed_s=round(elapsed, 2), **outcome.detail)
         self._advance(job.video_id)
 
@@ -88,16 +93,30 @@ class Worker:
             repo.set_stage(job.video_id, job.stage, StageStatus.RETRYING, attempts=job.attempt, error=err)
             tier = self.publisher.publish_retry(nxt)
             STAGE_OUTCOMES.labels(job.stage.value, "retry").inc()
-            log.warning("stage_retry_scheduled", video_id=job.video_id, stage=job.stage, attempt=job.attempt,
-                        tier=tier, kind=kind, error=err[:300])  # fmt: skip
+            log.warning(
+                "stage_retry_scheduled",
+                video_id=job.video_id,
+                stage=job.stage,
+                attempt=job.attempt,
+                tier=tier,
+                kind=kind,
+                error=err[:300],
+            )
             return
         repo.set_stage(job.video_id, job.stage, StageStatus.FAILED, attempts=job.attempt, error=err)
         STAGE_OUTCOMES.labels(job.stage.value, "failed").inc()
         if kind != "permanent":
             self.publisher.publish_dead(job.model_copy(update={"reason": err[:300]}))
         trace = "".join(traceback.format_exception(exc))[-2000:] if kind == "unknown" else None
-        log.error("stage_failed", video_id=job.video_id, stage=job.stage, attempt=job.attempt, kind=kind,
-                  error=err[:500], trace=trace)  # fmt: skip
+        log.error(
+            "stage_failed",
+            video_id=job.video_id,
+            stage=job.stage,
+            attempt=job.attempt,
+            kind=kind,
+            error=err[:500],
+            trace=trace,
+        )
         self._advance(job.video_id)
 
     def _advance(self, video_id: str) -> None:
