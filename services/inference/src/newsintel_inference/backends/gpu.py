@@ -184,9 +184,10 @@ def _load_reranker():
 
 def _load_ocr():
     from paddleocr import PaddleOCR
-    log.info("Loading PaddleOCR for langs: %s", _M_OCR_LANGS)
-    # use_gpu=False: PaddleOCR uses its own CUDA; keep it CPU to leave GPU for transformers models
-    return PaddleOCR(use_angle_cls=True, lang="en", use_gpu=False, show_log=False)
+    log.info("Loading PaddleOCR (3.x API)")
+    # PaddleOCR 3.x removed use_angle_cls / use_gpu / show_log — use minimal args only.
+    # lang="en" enables both English and Arabic detection/recognition in 3.x.
+    return PaddleOCR(lang="en")
 
 
 # ── helper: image → base64 ────────────────────────────────────────────────────
@@ -292,21 +293,50 @@ class GpuBackend(Backend):
 
     def ocr(self, images: list[Image.Image], languages: list[str]) -> OcrResponse:
         import numpy as np
-        ocr = self._ocr.get()
+        ocr_model = self._ocr.get()
         results = []
         for img in images:
             arr = np.array(img.convert("RGB"))
-            raw = ocr.ocr(arr, cls=True)
-            lines = []
-            full_texts = []
-            for block in (raw or []):
-                for line in (block or []):
-                    bbox_raw, (text, conf) = line
-                    # bbox_raw is [[x0,y0],[x1,y1],[x2,y2],[x3,y3]]
-                    xs = [p[0] for p in bbox_raw]
-                    ys = [p[1] for p in bbox_raw]
-                    lines.append(OcrLine(text=text, confidence=float(conf), bbox=[min(xs), min(ys), max(xs), max(ys)]))
-                    full_texts.append(text)
+            lines: list[OcrLine] = []
+            full_texts: list[str] = []
+            try:
+                # PaddleOCR 3.x pipeline API: ocr.predict() returns a list of result objects/dicts
+                raw = ocr_model.predict(arr)
+                if raw:
+                    item = raw[0]
+                    # 3.x result may be a dict or an object with attributes
+                    if hasattr(item, "rec_texts"):
+                        texts = item.rec_texts or []
+                        scores = item.rec_scores or []
+                        polys = item.det_polys or []
+                    elif isinstance(item, dict):
+                        texts = item.get("rec_texts", [])
+                        scores = item.get("rec_scores", [])
+                        polys = item.get("det_polys", [])
+                    else:
+                        texts, scores, polys = [], [], []
+                    for text, score, poly in zip(texts, scores, polys):
+                        xs = [p[0] for p in poly] if poly else [0]
+                        ys = [p[1] for p in poly] if poly else [0]
+                        lines.append(OcrLine(
+                            text=str(text), confidence=float(score),
+                            bbox=[min(xs), min(ys), max(xs), max(ys)],
+                        ))
+                        full_texts.append(str(text))
+            except (AttributeError, TypeError):
+                # Fallback: PaddleOCR 2.x API → ocr.ocr(arr, cls=True)
+                # Returns [[[bbox_pts, (text, conf)], ...]]
+                raw2 = ocr_model.ocr(arr, cls=True)  # type: ignore[attr-defined]
+                for block in (raw2 or []):
+                    for line in (block or []):
+                        bbox_raw, (text, conf) = line
+                        xs = [p[0] for p in bbox_raw]
+                        ys = [p[1] for p in bbox_raw]
+                        lines.append(OcrLine(
+                            text=text, confidence=float(conf),
+                            bbox=[min(xs), min(ys), max(xs), max(ys)],
+                        ))
+                        full_texts.append(text)
             results.append(OcrResult(text="\n".join(full_texts), lines=lines))
         return OcrResponse(results=results, model=ModelRef(name="paddleocr"))
 
