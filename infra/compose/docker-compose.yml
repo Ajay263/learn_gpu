@@ -10,6 +10,28 @@ x-logging: &default-logging
   driver: json-file
   options: { max-size: "10m", max-file: "3" }
 
+# Shared definition for API / worker / MCP (same image, different command).
+x-app: &app
+  image: newsintel-app:${APP_IMAGE_TAG:-dev}
+  build: { context: ../../services }
+  profiles: ["app"]
+  env_file: ["../../.env"]
+  environment:
+    POSTGRES_HOST: postgres
+    RABBITMQ_HOST: rabbitmq
+    S3_ENDPOINT_URL: http://minio:9000
+    OIDC_ISSUER: ${OIDC_ISSUER:-http://localhost:8081/realms/newsintel}
+    OIDC_JWKS_URL: http://keycloak:8080/realms/newsintel/protocol/openid-connect/certs
+    PIXELTABLE_HOME: /var/lib/pixeltable
+  volumes: ["pixeltable-cache:/var/lib/pixeltable"]
+  depends_on:
+    postgres: { condition: service_healthy }
+    rabbitmq: { condition: service_healthy }
+    minio: { condition: service_healthy }
+  deploy: { resources: { limits: { memory: 1g } } }
+  logging: *default-logging
+  restart: unless-stopped
+
 services:
   # ───────────── Environment 1: ingestion & object storage ─────────────
   minio:
@@ -186,7 +208,46 @@ services:
     logging: *default-logging
     restart: unless-stopped
 
+  # ───────────── Environment 4: application (one image, several roles) ─────────────
+  api:
+    <<: *app
+    command: ["newsintel-api", "--host", "0.0.0.0", "--port", "8000"]
+    ports: ["127.0.0.1:8000:8000"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  worker:
+    <<: *app
+    command: ["newsintel-worker"]
+    deploy: { resources: { limits: { memory: 1500m } } }
+
+  # Deterministic stand-in for the GPU inference API (no model weights). For dev/CI without Kaggle.
+  inference-fake:
+    image: newsintel-app:${APP_IMAGE_TAG:-dev}
+    profiles: ["fake-inference"]
+    command: ["newsintel-inference", "--host", "0.0.0.0", "--port", "9100"]
+    environment:
+      INFERENCE_API_KEY: ${AI_INFERENCE_API_KEY}
+      INFERENCE_BACKEND: fake
+      EMBED_TEXT_DIM: ${EMBED_TEXT_DIM:-1024}
+      EMBED_IMAGE_DIM: ${EMBED_IMAGE_DIM:-768}
+      FAKE_ASR_SCRIPT: ${FAKE_ASR_SCRIPT:-}
+    volumes: ["../../tests/fixtures:/fixtures:ro"]
+    ports: ["127.0.0.1:9100:9100"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9100/livez"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging: *default-logging
+    restart: unless-stopped
+
 volumes:
+  pixeltable-cache:
   minio-data:
   sftpgo-data:
   sftpgo-home:

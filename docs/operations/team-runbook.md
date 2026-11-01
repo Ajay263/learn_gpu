@@ -74,7 +74,7 @@ docker compose --env-file .env -f infra/compose/docker-compose.yml restart nifi
 make logs S=nifi
 ```
 
-## 6. Upload a news video [TESTED 2026-11-01 — upload step only; downstream processing pending M3]
+## 6. Upload a news video [TESTED 2026-11-01]
 
 ```bash
 sftp -P 2022 newsdesk@localhost       # password: SFTPGO_UPLOADER_PASSWORD in .env
@@ -82,7 +82,7 @@ sftp> put my-bulletin.mp4
 ```
 
 The file appears as `landing/uploads/newsdesk/my-bulletin.mp4` in MinIO. Allowed extensions:
-mp4, mov, mkv, webm, ts, m4v, pdf, jpg, jpeg, png. Max size: `MAX_UPLOAD_BYTES` (1 GiB default).
+mp4, mov, mkv, webm, m4v (MVP processes video only). Max size: `MAX_UPLOAD_BYTES` (1 GiB default).
 
 ---
 
@@ -95,7 +95,50 @@ mp4, mov, mkv, webm, ts, m4v, pdf, jpg, jpeg, png. Max size: `MAX_UPLOAD_BYTES` 
 | `up --wait` fails with `exited (0)` | Compose treats finished one-shots as failures | Init jobs run via `compose run`; use `make up-core`, not raw `up --wait`. |
 | SFTP upload of `.exe` fails with "Permission denied" | Intended: extension allowlist | Rename only if the content really is an allowed type; NiFi re-checks magic bytes. |
 
+Upload into a sub-folder named after a collection to restrict access, e.g. `put x.mp4 collection-restricted/x.mp4`
+(`mkdir collection-restricted` first). Otherwise the video goes to `collection-general`.
+
+## 7. Deploy / redeploy the NiFi ingestion flow [TESTED 2026-11-01]
+
+Requires the API to be running (`make build && make up-app`).
+
+```bash
+make nifi-deploy       # first time; no-op if already deployed
+make nifi-redeploy     # after editing infra/nifi/deploy_flow.py (drops FlowFiles queued inside NiFi)
+```
+Expected: `deployed 'news-ingestion' (25 processors, 39 connections) and started it`.
+
+## 8. Verify ingestion [TESTED 2026-11-01]
+
+```bash
+make test-integration     # includes tests/integration/test_ingestion.py (3 tests)
+```
+Manual check after an upload (≈15–30 s; NiFi lists every 15 s):
+
+| Where | Expected |
+|---|---|
+| `landing/uploads/newsdesk/<file>` | gone (consumed) |
+| `bronze/videos/<sha256>/original.<ext>` | the original, byte-identical |
+| `manifests/ingest/<sha256>/<ts>-<uuid>.json` | one manifest per upload event; `duplicate` true/false |
+| `landing/rejected/…` + `manifests/rejected/…json` | only for rejected files, with `reject_reason` |
+| RabbitMQ queue `stage.jobs` | +1 `probe` job for each *new* video |
+| Audit (`audit_events` in DB `newsintel`) | `ingest.register` row |
+
+```bash
+# audit trail
+docker exec -e PGPASSWORD=$(grep ^APP_DB_PASSWORD .env|cut -d= -f2) newsintel-postgres-1 \
+  psql -U newsintel -d newsintel -c "SELECT ts, actor, action, resource_id, detail FROM audit_events ORDER BY id DESC LIMIT 10"
+```
+
+### Ingestion troubleshooting
+
+| Symptom | Check | Fix |
+|---|---|---|
+| File stays in `landing/uploads/` | NiFi UI → `news-ingestion` → queued FlowFiles / bulletins | API down? `curl localhost:8000/readyz`. After fixing, NiFi retries automatically (up to 120 × 30 s). If the retry budget was exhausted: `make nifi-relist`. |
+| File moved to `landing/rejected/` | `manifests/rejected/*.json` → `reject_reason` | Wrong type / too large / API 4xx (see `api_response`). Re-upload a corrected file. |
+| Upload duplicate | Manifest shows `"duplicate": "true"` | Expected: same bytes = same video. No reprocessing. |
+
 ## Pending sections (filled in as milestones complete)
 
-Verify ingestion · monitor processing · verify transcription · test AI inference · search · clips ·
+Monitor processing · verify transcription · test AI inference · search · clips ·
 failed jobs · update models · update configuration · backup/restore · production deployment.

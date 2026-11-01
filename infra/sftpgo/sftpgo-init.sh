@@ -9,8 +9,8 @@ resp=$(curl -fsS -u "$SFTPGO_ADMIN_USER:$SFTPGO_ADMIN_PASSWORD" "$SFTPGO_URL/api
 [[ "$resp" =~ \"access_token\":\"([^\"]+)\" ]] || { echo "sftpgo-init: could not obtain admin token" >&2; exit 1; }
 token="${BASH_REMATCH[1]}"
 
-# Media + document types accepted at the edge. NiFi re-validates by content (magic bytes).
-patterns='"*.mp4","*.MP4","*.mov","*.MOV","*.mkv","*.MKV","*.webm","*.WEBM","*.ts","*.TS","*.m4v","*.M4V","*.pdf","*.PDF","*.jpg","*.JPG","*.jpeg","*.JPEG","*.png","*.PNG"'
+# Video containers accepted at the edge (MVP processes video only). NiFi re-validates by content (magic bytes).
+patterns='"*.mp4","*.MP4","*.mov","*.MOV","*.mkv","*.MKV","*.webm","*.WEBM","*.m4v","*.M4V"'
 
 body=$(cat <<EOF
 {

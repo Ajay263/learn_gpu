@@ -68,6 +68,10 @@ class Settings(BaseSettings):
     oidc_audience: str = "newsintel-api"
     ingest_service_token: SecretStr
     auth_disabled: bool = False  # tests only; refused when app_env=production
+    # Access-control units. An upload at uploads/<user>/<collection>/<file> goes to <collection> if it is
+    # listed here; otherwise to default_collection. Users get collections through Keycloak groups.
+    collections: list[str] = ["collection-general", "collection-restricted"]
+    default_collection: str = "collection-general"
 
     # ── Processing
     scratch_dir: str = Field(default_factory=lambda: os.path.join(os.path.expanduser("~"), ".cache", "newsintel"))
