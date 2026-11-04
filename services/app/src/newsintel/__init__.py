@@ -1,1 +1,0 @@
-"""Multimodal News Intelligence Platform."""
